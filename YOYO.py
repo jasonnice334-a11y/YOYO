@@ -18,17 +18,8 @@ from datetime import datetime, date
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ===============================
-# DUAL SHEET CONFIGURATION
+# ENGINE CONFIGURATION
 # ===============================
-# Primary Sheet (Public CSV)
-SHEET_1_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRuFebZZ-vGXmobRjDU9C1dWRgcSjXwQ5YjK24Goh9rE0TQtoDXYaKBGWPs94_INOTUuzlXAiXAx42P/pub?output=csv"
-
-# Secondary Sheet (Exported CSV from your provided edit link)
-SHEET_2_URL = "https://docs.google.com/spreadsheets/d/1bpQMfIFQGKKeDFcCbGrpFBN8bRlfndrhfj_CdrDHAcw/export?format=csv"
-
-LOCAL_KEYS_FILE = os.path.expanduser("~/.ruijie_approved_keys.txt")
-LICENSE_INFO_FILE = os.path.expanduser("~/.ruijie_license_info.txt")
-
 # Turbo Engine Settings
 PING_THREADS = 15          
 MIN_INTERVAL = 0.05        
@@ -43,36 +34,6 @@ stop_event = threading.Event()
 # ===============================
 # CORE LOGIC FUNCTIONS
 # ===============================
-
-def get_system_key():
-    import uuid
-    # Generates a clean 8-character hardware-based key
-    full_key = hashlib.md5(str(uuid.getnode()).encode()).hexdigest()
-    return full_key[:8]
-
-def check_approval():
-    system_key = get_system_key()
-    print(f"{CYAN}[*] System Key: {YELLOW}{system_key}{RESET}")
-    
-    try:
-        # Check both sheets for the system key
-        resp1 = requests.get(SHEET_1_URL, timeout=10)
-        resp2 = requests.get(SHEET_2_URL, timeout=10)
-        
-        combined_data = resp1.text + resp2.text
-        
-        if system_key in combined_data:
-            print(f"{GREEN}[✓] Access Granted: License Valid{RESET}")
-            return True
-            
-    except Exception as e:
-        # Offline fallback if license file exists
-        if os.path.exists(LICENSE_INFO_FILE):
-            return True
-            
-    print(f"{RED}[✗] Access Denied: Key Not Found{RESET}")
-    print(f"{YELLOW}[!] Add '{system_key}' to Row 1 of your Google Sheet to activate.{RESET}")
-    return False
 
 def check_internet():
     try:
@@ -110,6 +71,8 @@ def turbo_pulse(auth_link, sid):
 
 def start_engine():
     print(f"{CYAN}--- Ruijie Ultimate Bypass Engine Loaded ---{RESET}")
+    print(f"{CYAN}--- Status: Public Version (No Key Required) ---{RESET}\n")
+    
     while not stop_event.is_set():
         if check_internet():
             print(f"{YELLOW}[•] Connection Stable. Monitoring...{RESET}", end="\r")
@@ -149,10 +112,10 @@ def start_engine():
             time.sleep(5)
 
 if __name__ == "__main__":
-    if check_approval():
-        try:
-            start_engine()
-        except KeyboardInterrupt:
-            stop_event.set()
-            print(f"\n{RED}Engine Halted by User.{RESET}")
+    try:
+        # Start Engine Directly without Approval Check
+        start_engine()
+    except KeyboardInterrupt:
+        stop_event.set()
+        print(f"\n{RED}Engine Halted by User.{RESET}")
             
